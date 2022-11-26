@@ -1,8 +1,22 @@
 using System;
 using System.Collections;
-using Unity.Barracuda;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.UI;
+
+[Serializable]
+public class Hand
+{
+    public float x;
+    public float y;
+    public float z;
+}
+
+[Serializable]
+public class Hands
+{
+    public Hand[] hands;
+}
 
 public class InferenceYolo : MonoBehaviour
 {
@@ -11,66 +25,58 @@ public class InferenceYolo : MonoBehaviour
     private WebCamTexture _webCamTexture;
     private const int SelectCamera = 1; /* 追加 ２*/
     private Texture2D _tex;
-    [SerializeField] private NNModel modelSource;
-    private IWorker _worker;
-    private Boolean _detected;
-    private IEnumerator _executor;
+    public bool isWave;
 
     void Start()
     {
         WebCamDevice[] webCamDevice = WebCamTexture.devices;
-        _webCamTexture = new WebCamTexture(webCamDevice[SelectCamera].name, 640, 640); //カメラを変更
+        _webCamTexture = new WebCamTexture(webCamDevice[SelectCamera].name, 416, 416); //カメラを変更
         _webCamTexture.Play();
 
-        var model = ModelLoader.Load(modelSource);
-        _worker = WorkerFactory.CreateWorker(WorkerFactory.Type.Compute, model);
+        StartCoroutine(nameof(GetHand));
     }
 
-    void Update()
+    private IEnumerator GetHand()
     {
         // Webカメラ準備前は無処理
-        if (_webCamTexture == null ||
-            _webCamTexture.width <= 16 || _webCamTexture.height <= 16) return;
-
-        if (_detected)
+        while (_webCamTexture == null ||
+               _webCamTexture.width <= 16 || _webCamTexture.height <= 16)
         {
-            Tensor input = GetInputTensor();
-            _executor = _worker.StartManualSchedule(input);
-            _detected = false;
-            input.Dispose();
+            yield return null;
         }
-        else
+
+        _tex = new Texture2D(_webCamTexture.width, _webCamTexture.height);
+
+        while (true)
         {
-            int i = 0;
-            bool hasMoreWork = true;
-            do
-            {
-                hasMoreWork = _executor.MoveNext();
+            _tex.SetPixels(_webCamTexture.GetPixels());
+            _tex.Apply();
+            Texture2D resizedTex = Resize(_tex, 416, 416);
+            Destroy(rawImage.texture);
+            rawImage.texture = resizedTex;
+            byte[] bytes = resizedTex.EncodeToJPG(50);
 
-            } while (++i < 30 && hasMoreWork);
+            // Create a Web Form
+            WWWForm form = new WWWForm();
+            form.AddBinaryData("file", bytes);
 
-            if (!hasMoreWork)
+            UnityWebRequest www = UnityWebRequest.Post("https://korone-nxvvg3u2jq-an.a.run.app", form);
+            yield return www.SendWebRequest();
+
+            if (www.result == UnityWebRequest.Result.Success)
             {
-                Tensor output = _worker.CopyOutput();
-                Debug.Log(output.shape);
-                output.Dispose();
+                Hands hands = JsonUtility.FromJson<Hands>(www.downloadHandler.text);
+                Debug.Log(hands.hands.Length);
+                isWave = hands.hands.Length > 0;
             }
-        }
-    }
+            else
+            {
+                Debug.LogError(www.error);
+            }
 
-    Tensor GetInputTensor()
-    {
-        if (_tex == null)
-        {
-            _tex = new Texture2D(_webCamTexture.width, _webCamTexture.height);
+            www.Dispose();
+            yield return new WaitForSeconds(1f);
         }
-    
-        _tex.SetPixels(_webCamTexture.GetPixels());
-        _tex.Apply();
-        Texture2D resizedTex = Resize(_tex, 416, 416);
-        rawImage.texture = resizedTex;
-        Debug.Log(resizedTex);
-        return new Tensor(resizedTex,3);
     }
 
     private Texture2D Resize(Texture2D texture2D, int targetX, int targetY)
@@ -81,6 +87,7 @@ public class InferenceYolo : MonoBehaviour
         Texture2D result = new Texture2D(targetX, targetY);
         result.ReadPixels(new Rect(0, 0, targetX, targetY), 0, 0);
         result.Apply();
+        Destroy(rt);
         return result;
     }
 }

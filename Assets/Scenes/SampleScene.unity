@@ -427,7 +427,7 @@ GameObject:
   - component: {fileID: 1064553276}
   - component: {fileID: 1064553274}
   m_Layer: 5
-  m_Name: RawImage
+  m_Name: FrontImage
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -466,7 +466,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   rawImage: {fileID: 1064553276}
-  modelSource: {fileID: 5022602860645237092, guid: 6c21a8cd83960fcd59c13e3b40727324, type: 3}
+  isWave: 0
 --- !u!114 &1064553276
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -590,7 +590,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0f55e0d25821bc2f09bdea79f3d3376d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sphere: {fileID: 4478123941497194518, guid: 2b66bce5a573958bb8521708fbf3f80d, type: 3}
+  sphere: {fileID: 1037441527186240943, guid: 2b66bce5a573958bb8521708fbf3f80d, type: 3}
+  rawImage: {fileID: 1064553276}
 --- !u!1 &1646310744
 GameObject:
   m_ObjectHideFlags: 0
