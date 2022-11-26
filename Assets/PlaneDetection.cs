@@ -8,7 +8,7 @@ public class PlaneDetection : MonoBehaviour
 {
     private ARRaycastManager _raycastManager;
     [SerializeField] GameObject sphere;
-    public RawImage rawImage;
+    public GameObject cameraGameObject;
 
     private void Awake()
     {
@@ -29,7 +29,7 @@ public class PlaneDetection : MonoBehaviour
             var hitPose = hits[0].pose;
             // インスタンス化
             GameObject obj = Instantiate(sphere, hitPose.position, hitPose.rotation * Quaternion.AngleAxis(180, new Vector3(0, 1, 0)));
-            obj.GetComponent<ModelControl>().rawImage = rawImage;
+            obj.GetComponent<ModelControl>().obj = cameraGameObject;
         }
     }
 }

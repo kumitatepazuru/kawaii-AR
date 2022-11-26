@@ -1,8 +1,10 @@
 using System;
 using System.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using UnityEngine.Networking;
-using UnityEngine.UI;
+using UnityEngine.XR.ARFoundation;
+using UnityEngine.XR.ARSubsystems;
 
 [Serializable]
 public class Hand
@@ -18,42 +20,66 @@ public class Hands
     public Hand[] hands;
 }
 
-public class InferenceYolo : MonoBehaviour
+public class DetectHands : MonoBehaviour
 {
-    public RawImage rawImage;
+    public ARCameraManager cameraManager;
 
-    private WebCamTexture _webCamTexture;
-    private const int SelectCamera = 1; /* 追加 ２*/
     private Texture2D _tex;
     public bool isWave;
 
     void Start()
     {
-        WebCamDevice[] webCamDevice = WebCamTexture.devices;
-        _webCamTexture = new WebCamTexture(webCamDevice[SelectCamera].name, 416, 416); //カメラを変更
-        _webCamTexture.Play();
-
         StartCoroutine(nameof(GetHand));
+    }
+    
+    
+    void OnEnable()
+    {
+        cameraManager.frameReceived += OnCameraFrameReceived;
+    }
+
+    void OnDisable()
+    {
+        cameraManager.frameReceived -= OnCameraFrameReceived;
+    }
+    
+    unsafe void OnCameraFrameReceived(ARCameraFrameEventArgs eventArgs)
+    {
+        XRCpuImage image;
+        if (!cameraManager.TryAcquireLatestCpuImage(out image))
+            return;
+
+        XRCpuImage.ConversionParams conversionParams = new XRCpuImage.ConversionParams
+        (
+            image,
+            TextureFormat.RGBA32
+            );
+      
+        if (!(image.width <= 16 || image.height <= 16))
+        {
+            if (_tex == null)
+            {
+                _tex = new Texture2D(conversionParams.outputDimensions.x,
+                    conversionParams.outputDimensions.y,
+                    conversionParams.outputFormat, false);
+            }
+            
+            var buffer = _tex.GetRawTextureData<byte>();
+            image.Convert(conversionParams, new IntPtr(buffer.GetUnsafePtr()), buffer.Length);
+            _tex.Apply();
+
+            buffer.Dispose();
+        }
+        image.Dispose();
     }
 
     private IEnumerator GetHand()
     {
-        // Webカメラ準備前は無処理
-        while (_webCamTexture == null ||
-               _webCamTexture.width <= 16 || _webCamTexture.height <= 16)
-        {
-            yield return null;
-        }
-
-        _tex = new Texture2D(_webCamTexture.width, _webCamTexture.height);
-
         while (true)
         {
-            _tex.SetPixels(_webCamTexture.GetPixels());
-            _tex.Apply();
+            if (_tex == null) yield return null;
+            
             Texture2D resizedTex = Resize(_tex, 416, 416);
-            Destroy(rawImage.texture);
-            rawImage.texture = resizedTex;
             byte[] bytes = resizedTex.EncodeToJPG(50);
 
             // Create a Web Form
@@ -75,7 +101,7 @@ public class InferenceYolo : MonoBehaviour
             }
 
             www.Dispose();
-            yield return new WaitForSeconds(1f);
+            yield return new WaitForSeconds(0f);
         }
     }
 
